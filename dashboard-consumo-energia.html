@@ -1,0 +1,103 @@
+<div id="rancho-energy-dashboard" class="container-fluid" aria-label="Dashboard interativo de energia do Rancho Alberto Batista">
+  <h1>Energia do Rancho</h1>
+  <p class="text-muted">Consumo, injeção na rede e geração · set–dez/2026</p>
+
+  <div class="viz-controls">
+    <label class="form-label" for="energy-period">Período do gráfico
+      <select id="energy-period" class="form-select" aria-label="Filtrar por período">
+        <option value="all">Todos os períodos</option>
+        <option value="Setembro">Setembro</option>
+        <option value="Outubro">Outubro</option>
+        <option value="Novembro">Novembro</option>
+        <option value="Dezembro">Dezembro</option>
+      </select>
+    </label>
+    <label class="form-label" for="energy-metric">Indicadores no gráfico
+      <select id="energy-metric" class="form-select" aria-label="Selecionar indicadores">
+        <option value="all">Consumo, injeção e geração</option>
+        <option value="consumption">Consumo</option>
+        <option value="injection">Injeção na rede</option>
+        <option value="generation">Geração</option>
+      </select>
+    </label>
+  </div>
+
+  <div class="viz-grid" aria-live="polite" aria-label="Indicadores do período em foco">
+    <div class="card viz-stat">
+      <span class="text-muted">Consumo</span>
+      <strong id="energy-consumption" class="viz-stat-value tabular-nums">280 kWh</strong>
+    </div>
+    <div class="card viz-stat">
+      <span class="text-muted">Injeção na rede</span>
+      <strong id="energy-injection" class="viz-stat-value tabular-nums">607,4 kWh</strong>
+    </div>
+    <div class="card viz-stat">
+      <span class="text-muted">Geração</span>
+      <strong id="energy-generation" class="viz-stat-value tabular-nums">684,5 kWh</strong>
+    </div>
+  </div>
+  <p id="energy-focus" class="text-muted" aria-live="polite">Período em foco: novembro · parcial até 23/11, com projeção para os dias restantes.</p>
+
+  <section id="rancho-energy-chart" data-viz-composition aria-label="Comparação mensal de consumo, injeção e geração">
+    <div data-viz-container></div>
+    <script type="application/json" data-viz-chart>
+      {"id":"rancho-energy-chart","title":"Energia por período","description":"Comparação em quilowatt-hora. Setembro é parcial, novembro mistura leituras até 23 de novembro com projeção, e dezembro é projetado.","summary":"A geração supera o consumo nos períodos de outubro a dezembro; novembro e dezembro têm valores projetados.","height":360,"spec":{"type":"bar","x":"Período","y":["Consumo (kWh)","Injeção na rede (kWh)","Geração (kWh)"],"xLabel":"Período","yLabel":"Energia (kWh)","showLegend":true,"showValues":false,"startAtZero":true,"valueFormat":{"style":"decimal","minimumFractionDigits":0,"maximumFractionDigits":1},"colors":{"Consumo (kWh)":"var(--chart-1)","Injeção na rede (kWh)":"var(--chart-2)","Geração (kWh)":"var(--chart-3)"}},"columns":["Período","Consumo (kWh)","Injeção na rede (kWh)","Geração (kWh)"],"rows":[["Setembro · parcial",329,183.896,210.9023],["Outubro · completo",252,474.86,552.8942],["Novembro · parcial + projeção",280,607.35021,684.52421],["Dezembro · projetado",279,588,650]]}
+    </script>
+  </section>
+
+  <p id="energy-note" class="text-small text-muted">Fonte: aba Resumo da planilha revisada. Setembro cobre 18–30/09 e inclui leitura do medidor antigo; novembro considera projeção de 24 a 30/11; dezembro é projetado. As datas-base podem variar em relação ao ciclo da fatura.</p>
+</div>
+<script type="module">
+  import { mountChart } from "https://persistent.oaistatic.com/plugins/visualize/charts/1.8.1/element.js";
+
+  const root = document.getElementById("rancho-energy-dashboard");
+  const chartRoot = document.getElementById("rancho-energy-chart");
+  const chartData = JSON.parse(chartRoot.querySelector("[data-viz-chart]").textContent);
+  const periodSelect = document.getElementById("energy-period");
+  const metricSelect = document.getElementById("energy-metric");
+  const rows = chartData.rows;
+  const metricColumns = {
+    consumption: "Consumo (kWh)",
+    injection: "Injeção na rede (kWh)",
+    generation: "Geração (kWh)"
+  };
+  const number = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 1 });
+  const chart = mountChart(chartRoot.querySelector("[data-viz-container]"), chartData);
+
+  function update() {
+    const selectedPeriod = periodSelect.value;
+    const selectedMetric = metricSelect.value;
+    const visibleRows = selectedPeriod === "all"
+      ? rows
+      : rows.filter((row) => row[0].startsWith(selectedPeriod));
+    const selectedMeasures = selectedMetric === "all"
+      ? [metricColumns.consumption, metricColumns.injection, metricColumns.generation]
+      : [metricColumns[selectedMetric]];
+    const focusRow = selectedPeriod === "all"
+      ? rows.find((row) => row[0].startsWith("Novembro"))
+      : visibleRows[0];
+
+    chart.config = {
+      ...chartData,
+      rows: visibleRows,
+      spec: { ...chartData.spec, y: selectedMeasures }
+    };
+
+    document.getElementById("energy-consumption").textContent = `${number.format(focusRow[1])} kWh`;
+    document.getElementById("energy-injection").textContent = `${number.format(focusRow[2])} kWh`;
+    document.getElementById("energy-generation").textContent = `${number.format(focusRow[3])} kWh`;
+    const focusPeriod = focusRow[0].split(" · ")[0].toLowerCase();
+    const detail = focusPeriod === "novembro"
+      ? "até 23/11, com projeção para os dias restantes"
+      : focusPeriod === "dezembro"
+        ? "projetado para o mês inteiro"
+        : focusPeriod === "setembro"
+          ? "18–30/09, período parcial"
+          : "mês completo, conforme o resumo da planilha";
+    document.getElementById("energy-focus").textContent = `Período em foco: ${focusPeriod} · ${detail}.`;
+  }
+
+  periodSelect.addEventListener("change", update);
+  metricSelect.addEventListener("change", update);
+  update();
+</script>
